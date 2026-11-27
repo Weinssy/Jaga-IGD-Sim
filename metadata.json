@@ -1,0 +1,8 @@
+{
+  "name": "Jaga IGD",
+  "description": "Simulasi klinis instalasi gawat darurat 2D modern dengan monitor vital real-time, EKG 12-lead interaktif, syringe pump, dan prosedur intubasi laringoskopi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
