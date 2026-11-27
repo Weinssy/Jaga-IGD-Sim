@@ -1,24 +1,19 @@
 import React, { useState } from 'react';
 import {
-  Activity,
   FileText,
   Minus,
   Plus,
   Pause,
   Play,
   Square,
-  ChevronDown,
-  ChevronUp,
   Syringe,
   Clock,
   CheckCircle2,
-  X,
 } from 'lucide-react';
 import {
   ActivePump,
   ActiveTestOrder,
   ClinicalCase,
-  NurseDialogue,
   OxygenDelivery,
   PatientPosture,
   VitalSigns,
@@ -35,9 +30,6 @@ interface ErBayStageProps {
   activePumps: ActivePump[];
   activeOrders: ActiveTestOrder[];
   elapsedSec: number;
-  nurseDialogue: NurseDialogue | null;
-  onDismissDialogue: () => void;
-  onAttachMonitor: () => void;
   onAdjustPump: (drugId: string, delta: number) => void;
   onTogglePumpPause: (drugId: string) => void;
   onStopPump: (drugId: string) => void;
@@ -55,9 +47,6 @@ export const ErBayStage: React.FC<ErBayStageProps> = ({
   activePumps,
   activeOrders,
   elapsedSec,
-  nurseDialogue,
-  onDismissDialogue,
-  onAttachMonitor,
   onAdjustPump,
   onTogglePumpPause,
   onStopPump,
@@ -65,19 +54,13 @@ export const ErBayStage: React.FC<ErBayStageProps> = ({
   onOpenMedicalRecord,
 }) => {
   const [selectedPumpId, setSelectedPumpId] = useState<string | null>(null);
-  const [showRunningPanel, setShowRunningPanel] = useState(true);
-  const [pumpPanelOpen, setPumpPanelOpen] = useState(true);
-  // Mobile-only collapsible overlay selector ('none' | 'pump' | 'running')
-  const [mobileOverlay, setMobileOverlay] = useState<'none' | 'pump' | 'running'>('none');
-
-  const activePump =
-    activePumps.find((p) => p.drugId === selectedPumpId) || activePumps[0] || null;
+  const [openPanel, setOpenPanel] = useState<'pump' | 'orders' | null>(null);
+  const activePump = activePumps.find((pump) => pump.drugId === selectedPumpId) ?? activePumps[0];
 
   const isHypoxic = vitals.spo2 < 89;
   const isDiaphoretic = vitals.hr > 115 || vitals.pain >= 7;
   const breathCycleSec = Math.max(1.2, Math.min(4.5, 60 / Math.max(10, vitals.rr)));
 
-  // Backrest rotation angle depending on posture
   const backrestAngle =
     posture === 'high_fowler'
       ? -66
@@ -86,248 +69,42 @@ export const ErBayStage: React.FC<ErBayStageProps> = ({
         : posture === 'trendelenburg'
           ? -6
           : -8;
-
   const bedTiltDeg = posture === 'trendelenburg' ? -4 : 0;
-
-  const pendingOrders = activeOrders.filter((o) => !o.completed);
-  const completedOrders = activeOrders.filter((o) => o.completed);
-  const runningCount = activePumps.length + pendingOrders.length;
-
   const app = clinicalCase.appearance;
 
-  const renderPumpCard = (onCloseCard: () => void, isMobile = false) => {
-    if (!activePump) return null;
-    return (
-      <div className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3.5 text-slate-100 shadow-2xl">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Syringe className="h-4 w-4 shrink-0 text-teal-400" />
-            <span className="truncate text-xs font-bold tracking-wide text-white">Syringe Pump</span>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {activePumps.length > 1 && (
-              <select
-                value={activePump.drugId}
-                onChange={(e) => setSelectedPumpId(e.target.value)}
-                className="max-w-[115px] rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-[11px] text-slate-200"
-              >
-                {activePumps.map((p) => (
-                  <option key={p.drugId} value={p.drugId}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              type="button"
-              onClick={onCloseCard}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
-              aria-label="Sembunyikan panel pump"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-2.5 flex items-baseline justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-bold text-white">{activePump.name}</div>
-            <div className="truncate text-[11px] text-slate-400">{activePump.route}</div>
-          </div>
-          <span
-            className={`shrink-0 text-[11px] font-semibold ${
-              activePump.paused ? 'text-amber-400' : 'text-emerald-400'
-            }`}
-          >
-            {activePump.paused ? 'Dijeda' : 'Berjalan'}
-          </span>
-        </div>
-
-        {/* Titration Controls */}
-        <div className="mt-2.5 flex items-center justify-between rounded-lg border border-slate-700/80 bg-slate-950/90 px-3 py-2">
-          <button
-            type="button"
-            onClick={() => onAdjustPump(activePump.drugId, -activePump.step)}
-            disabled={activePump.rate <= activePump.min}
-            className={`flex items-center justify-center rounded-md border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40 ${
-              isMobile ? 'h-10 w-10' : 'h-8 w-8'
-            }`}
-            aria-label="Turunkan dosis"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <div className="px-2 text-center">
-            <div className="font-mono text-xl font-bold text-teal-300 tabular-nums">
-              {activePump.rate}
-            </div>
-            <div className="font-mono text-[10px] text-slate-400">{activePump.unit}</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onAdjustPump(activePump.drugId, activePump.step)}
-            disabled={activePump.rate >= activePump.max}
-            className={`flex items-center justify-center rounded-md border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40 ${
-              isMobile ? 'h-10 w-10' : 'h-8 w-8'
-            }`}
-            aria-label="Naikkan dosis"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mt-2.5 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onTogglePumpPause(activePump.drugId)}
-            className="inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 whitespace-nowrap"
-          >
-            {activePump.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-            <span>{activePump.paused ? 'Lanjut' : 'Jeda'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onStopPump(activePump.drugId)}
-            className="inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-rose-500/40 bg-rose-950/60 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900/70 whitespace-nowrap"
-          >
-            <Square className="h-3 w-3 fill-current" />
-            <span>Stop</span>
-          </button>
-        </div>
-      </div>
-    );
+  const postureLabel: Record<PatientPosture, string> = {
+    high_fowler: 'High Fowler',
+    semi_fowler: 'Semi-Fowler',
+    trendelenburg: 'Elevasi tungkai',
+    supine: 'Telentang',
+  };
+  const oxygenLabel: Record<OxygenDelivery, string> = {
+    none: 'Udara ruangan',
+    nasal_cannula: 'Kanul nasal 4 L/m',
+    nrm: 'NRM 15 L/m',
+    bvm: 'Bag-valve mask',
+    ett: 'ETT dan ventilator',
   };
 
-  const renderRunningListBody = () => (
-    <div className="space-y-2 overflow-y-auto px-3.5 py-2.5 text-xs dark-scroll">
-      {activePumps.map((pump) => (
-        <button
-          key={pump.drugId}
-          type="button"
-          onClick={() => {
-            setSelectedPumpId(pump.drugId);
-            setPumpPanelOpen(true);
-            setMobileOverlay('pump');
-          }}
-          className="flex w-full items-center justify-between gap-2 rounded-lg bg-slate-800/80 px-2.5 py-2 text-left hover:bg-slate-800"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold text-teal-300">{pump.name}</div>
-            <div className="truncate font-mono text-[10px] text-slate-400">
-              Drip {pump.rate} {pump.unit}
-            </div>
-          </div>
-          <span className="shrink-0 font-mono text-[10px] font-semibold text-emerald-400">
-            {pump.paused ? 'Jeda' : 'Kontinu'}
-          </span>
-        </button>
-      ))}
-
-      {pendingOrders.map((order) => {
-        const test = clinicalCase.diagnostics.find((d) => d.id === order.testId);
-        if (!test) return null;
-        const rem = Math.max(0, Math.ceil(order.completesAtSec - elapsedSec));
-        return (
-          <div
-            key={order.testId}
-            className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-2.5 py-2"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium text-slate-200">{test.name}</div>
-              <div className="text-[10px] text-slate-400">{test.category}</div>
-            </div>
-            <span className="shrink-0 font-mono text-[11px] font-semibold text-amber-300 tabular-nums">
-              T-{formatClock(rem)}
-            </span>
-          </div>
-        );
-      })}
-
-      {completedOrders.length > 0 && (
-        <div className="space-y-1.5 border-t border-slate-800 pt-1.5">
-          <div className="text-[10px] font-semibold text-slate-400">Hasil Selesai (Klik buka)</div>
-          {completedOrders.map((order) => {
-            const test = clinicalCase.diagnostics.find((d) => d.id === order.testId);
-            if (!test) return null;
-            return (
-              <button
-                key={order.testId}
-                type="button"
-                onClick={() => onOpenTestResult(test.id)}
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-teal-800/60 bg-teal-950/60 px-2.5 py-2 text-left hover:bg-teal-900/60"
-              >
-                <span className="min-w-0 flex-1 truncate font-medium text-teal-200">{test.name}</span>
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-
   return (
-    <div className="relative flex-1 overflow-hidden bg-slate-200 select-none">
-      {/* Modern 2D ER Bay Backdrop */}
-      <img
-        src={ASSET_PATHS.erBayBackdrop}
-        alt="Ruang Resusitasi IGD"
-        referrerPolicy="no-referrer"
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-900/10 via-transparent to-slate-900/25" />
-
-      {/* Top-center status summary ribbon (wraps cleanly on narrow screens, zero overlap) */}
-      <div className="pointer-events-none absolute inset-x-3 top-2.5 z-10 flex flex-wrap items-center justify-between gap-2 text-[11px] sm:text-xs font-medium text-slate-700">
-        <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg border border-slate-200/90 bg-white/92 px-3 py-1.5 shadow-sm">
-          <span className="inline-flex items-center gap-1">
-            <span className="font-bold text-slate-900">Posisi:</span>
-            <span>
-              {posture === 'high_fowler'
-                ? 'Duduk 75° (High-Fowler)'
-                : posture === 'semi_fowler'
-                  ? 'Semi-Fowler 40°'
-                  : posture === 'trendelenburg'
-                    ? 'Berbaring + Elevasi Tungkai'
-                    : 'Supinasi (Datar)'}
-            </span>
-          </span>
-          <span className="hidden sm:inline text-slate-300" aria-hidden="true">|</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="font-bold text-slate-900">O₂:</span>
-            <span className={oxygen === 'none' ? 'text-slate-500' : 'font-semibold text-teal-700'}>
-              {oxygen === 'none'
-                ? 'Udara ruangan'
-                : oxygen === 'nasal_cannula'
-                  ? 'Nasal Kanul 4 L/m'
-                  : oxygen === 'nrm'
-                    ? 'NRM 15 L/m'
-                    : oxygen === 'bvm'
-                      ? 'Bag-Valve Mask'
-                      : 'Intubasi ETT + Vent'}
-            </span>
-          </span>
+    <div className="bay-stage">
+      <header className="bay-header">
+        <div>
+          <p>{clinicalCase.triageTag}</p>
+          <h2 id="bay-heading">Ruang resusitasi</h2>
         </div>
+        <button type="button" className="sim-secondary" onClick={onOpenMedicalRecord}>
+          <FileText size={16} aria-hidden="true" />
+          Rekam medis
+        </button>
+      </header>
 
-        {/* Desktop clickable Pump Badge if pump exists and panel is collapsed */}
-        {activePumps.length > 0 && !pumpPanelOpen && (
-          <button
-            type="button"
-            onClick={() => setPumpPanelOpen(true)}
-            className="pointer-events-auto hidden md:inline-flex items-center gap-2 rounded-lg border border-teal-500/60 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-teal-300 shadow-md hover:bg-slate-800 whitespace-nowrap"
-          >
-            <Syringe className="h-3.5 w-3.5" />
-            <span>Syringe Pump ({activePumps.length})</span>
-          </button>
-        )}
-      </div>
-
-      {/* Interactive Layered 2D Vector ER Scene */}
-      <div className="absolute inset-0 flex items-center justify-center px-2 sm:px-4 pt-12 sm:pt-8 pb-14 sm:pb-10">
+      <div className="bay-visual">
+        <img src={ASSET_PATHS.erBayBackdrop} alt="" width={1376} height={768} />
         <svg
-          viewBox="0 0 880 480"
-          className="h-full max-h-[540px] w-full max-w-[920px] drop-shadow-sm"
+          viewBox="72 66 765 374"
           role="img"
-          aria-label={`Ilustrasi 2D pasien ${clinicalCase.patientName} di ruang resusitasi IGD`}
+          aria-label={`Ilustrasi pasien ${clinicalCase.patientName} di ranjang ruang resusitasi`}
         >
           <defs>
             <linearGradient id="bedMetal" x1="0" y1="0" x2="0" y2="1">
@@ -416,13 +193,7 @@ export const ErBayStage: React.FC<ErBayStageProps> = ({
             )}
 
             {activePumps.length > 0 && (
-              <g
-                onClick={() => {
-                  setPumpPanelOpen((v) => !v);
-                  setMobileOverlay((prev) => (prev === 'pump' ? 'none' : 'pump'));
-                }}
-                className="cursor-pointer"
-              >
+              <g>
                 <rect
                   x="158"
                   y="214"
@@ -569,15 +340,7 @@ export const ErBayStage: React.FC<ErBayStageProps> = ({
                   transition: 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
-                <g>
-                  <animateTransform
-                    attributeName="transform"
-                    type="scale"
-                    values="1 1; 1.045 1.015; 1 1"
-                    dur={`${breathCycleSec}s`}
-                    repeatCount="indefinite"
-                    additive="sum"
-                  />
+                <g className="animate-breathing" style={{ '--breath-cycle': `${breathCycleSec}s` } as React.CSSProperties}>
                   <path
                     d="M380 296 L380 212 Q380 194 404 194 L424 194 Q444 194 446 218 L442 296 Z"
                     fill={app.topColor}
@@ -732,182 +495,122 @@ export const ErBayStage: React.FC<ErBayStageProps> = ({
         </svg>
       </div>
 
-      {/* === DESKTOP (md:+): SINGLE NON-OVERLAPPING LEFT DOCK FOR SYRINGE PUMP & SEDANG BERJALAN === */}
-      {!nurseDialogue && (
-        <div className="pointer-events-none absolute bottom-3 left-3 top-14 z-20 hidden md:flex w-64 lg:w-72 flex-col justify-between gap-2.5 overflow-hidden">
-          {/* Syringe Pump Panel */}
-          {activePump && pumpPanelOpen ? (
-            <div className="shrink-0">
-              {renderPumpCard(() => setPumpPanelOpen(false), false)}
+      <dl className="bay-state">
+        <div>
+          <dt>Posisi</dt>
+          <dd>{postureLabel[posture]}</dd>
+        </div>
+        <div>
+          <dt>Oksigen</dt>
+          <dd>{oxygenLabel[oxygen]}</dd>
+        </div>
+        <div>
+          <dt>Akses IV</dt>
+          <dd>{ivAccess ? 'Terpasang' : 'Belum terpasang'}</dd>
+        </div>
+      </dl>
+
+      <div className="bay-tools">
+        {activePump && (
+          <button
+            type="button"
+            className="sim-secondary"
+            aria-expanded={openPanel === 'pump'}
+            aria-controls="pump-panel"
+            onClick={() => setOpenPanel(openPanel === 'pump' ? null : 'pump')}
+          >
+            <Syringe size={16} aria-hidden="true" />
+            Pompa infus ({activePumps.length})
+          </button>
+        )}
+        <button
+          type="button"
+          className="sim-secondary"
+          aria-expanded={openPanel === 'orders'}
+          aria-controls="orders-panel"
+          onClick={() => setOpenPanel(openPanel === 'orders' ? null : 'orders')}
+        >
+          <Clock size={16} aria-hidden="true" />
+          Pemeriksaan ({activeOrders.length})
+        </button>
+      </div>
+
+      {activePump && (
+        <section id="pump-panel" hidden={openPanel !== 'pump'} className="bay-panel" aria-labelledby="pump-heading">
+          <h3 id="pump-heading">Pompa infus</h3>
+          {activePumps.length > 1 ? (
+            <div className="sim-section-select">
+              <label htmlFor="active-pump">Obat pada pompa</label>
+              <select id="active-pump" value={activePump.drugId} onChange={(event) => setSelectedPumpId(event.currentTarget.value)}>
+                {activePumps.map((pump) => <option key={pump.drugId} value={pump.drugId}>{pump.name}</option>)}
+              </select>
             </div>
           ) : (
-            <div />
+            <strong>{activePump.name}</strong>
           )}
+          <p className="bay-panel-note">{activePump.route} · {activePump.paused ? 'Dijeda' : 'Berjalan'}</p>
 
-          {/* Sedang Berjalan Panel */}
-          {(runningCount > 0 || completedOrders.length > 0) && (
-            <div className="pointer-events-auto flex min-h-0 flex-col rounded-xl border border-slate-700 bg-slate-900/95 text-slate-100 shadow-xl">
-              <button
-                type="button"
-                onClick={() => setShowRunningPanel((v) => !v)}
-                className="flex w-full shrink-0 items-center justify-between px-3.5 py-2.5 text-left"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Clock className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                  <span className="truncate text-xs font-bold text-white">
-                    Sedang Berjalan ({runningCount})
-                  </span>
-                </div>
-                {showRunningPanel ? (
-                  <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                ) : (
-                  <ChevronUp className="h-4 w-4 shrink-0 text-slate-400" />
-                )}
-              </button>
-
-              {showRunningPanel && (
-                <div className="min-h-0 max-h-44 overflow-y-auto border-t border-slate-800 dark-scroll">
-                  {renderRunningListBody()}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* === MOBILE (< md): EXPANDABLE SINGLE OVERLAY SHEET SO SCENE REMAINS CLEAN === */}
-      {!nurseDialogue && mobileOverlay !== 'none' && (
-        <div className="md:hidden absolute inset-x-3 bottom-16 z-30 max-w-sm">
-          {mobileOverlay === 'pump' && activePump && renderPumpCard(() => setMobileOverlay('none'), true)}
-          {mobileOverlay === 'running' && (runningCount > 0 || completedOrders.length > 0) && (
-            <div className="flex max-h-56 flex-col rounded-xl border border-slate-700 bg-slate-900/95 text-slate-100 shadow-2xl">
-              <div className="flex shrink-0 items-center justify-between border-b border-slate-800 px-3.5 py-2.5">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="text-xs font-bold text-white">
-                    Sedang Berjalan ({runningCount})
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMobileOverlay('none')}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
-                  aria-label="Tutup daftar berjalan"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto dark-scroll">
-                {renderRunningListBody()}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* === BOTTOM ACTION BAR (Mobile left toggles + Quick Actions bottom-right) === */}
-      {!nurseDialogue && (
-        <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex flex-wrap items-center justify-between gap-2">
-          {/* Mobile left toggles for Pump / Sedang Berjalan */}
-          <div className="pointer-events-auto flex md:hidden items-center gap-1.5">
-            {activePump && (
-              <button
-                type="button"
-                onClick={() => setMobileOverlay((m) => (m === 'pump' ? 'none' : 'pump'))}
-                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold shadow-md whitespace-nowrap ${
-                  mobileOverlay === 'pump'
-                    ? 'border-teal-400 bg-teal-600 text-white'
-                    : 'border-teal-500/60 bg-slate-900/95 text-teal-300'
-                }`}
-              >
-                <Syringe className="h-3.5 w-3.5" />
-                <span>Pump {activePump.rate}</span>
-              </button>
-            )}
-            {(runningCount > 0 || completedOrders.length > 0) && (
-              <button
-                type="button"
-                onClick={() => setMobileOverlay((m) => (m === 'running' ? 'none' : 'running'))}
-                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold shadow-md whitespace-nowrap ${
-                  mobileOverlay === 'running'
-                    ? 'border-amber-400 bg-amber-500 text-slate-950'
-                    : 'border-slate-700 bg-slate-900/95 text-slate-100'
-                }`}
-              >
-                <Clock className="h-3.5 w-3.5 text-amber-400" />
-                <span>Berjalan ({runningCount})</span>
-              </button>
-            )}
-          </div>
-
-          {/* Right Quick Actions (Pasang Monitor / Rekam Medis) */}
-          <div className="pointer-events-auto ml-auto flex items-center gap-2">
-            {!monitorAttached && (
-              <button
-                type="button"
-                onClick={onAttachMonitor}
-                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-amber-500 px-3 sm:px-3.5 py-2 text-xs font-bold text-slate-950 shadow-md transition-colors hover:bg-amber-400 whitespace-nowrap"
-              >
-                <Activity className="h-3.5 w-3.5" />
-                <span>Pasang Monitor</span>
-              </button>
-            )}
+          <div className="bay-pump-rate">
             <button
               type="button"
-              onClick={onOpenMedicalRecord}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white/95 px-3 sm:px-3.5 py-2 text-xs font-semibold text-slate-800 shadow-sm transition-colors hover:bg-white whitespace-nowrap"
+              className="sim-secondary"
+              onClick={() => onAdjustPump(activePump.drugId, -activePump.step)}
+              disabled={activePump.rate <= activePump.min}
+              aria-label="Turunkan laju pompa"
             >
-              <FileText className="h-3.5 w-3.5 text-teal-700" />
-              <span>Rekam Medis</span>
+              <Minus size={16} aria-hidden="true" />
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* === TRIAGE NURSE KAK ADI DIALOGUE OVERLAY === */}
-      {nurseDialogue && (
-        <div className="absolute inset-x-3 bottom-3 z-30 mx-auto flex max-h-[82%] max-w-xl items-end gap-3">
-          <div className="hidden sm:block shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-800 shadow-xl">
-            <img
-              src={ASSET_PATHS.nursePortrait}
-              alt="Kak Adi — Perawat Triase"
-              referrerPolicy="no-referrer"
-              className="h-28 w-24 object-cover object-top"
-            />
-          </div>
-          <div className="flex max-h-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <img
-                  src={ASSET_PATHS.nursePortrait}
-                  alt="Kak Adi"
-                  referrerPolicy="no-referrer"
-                  className="h-9 w-9 shrink-0 rounded-full object-cover object-top sm:hidden"
-                />
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-bold text-slate-900">Kak Adi</div>
-                  <div className="truncate text-[11px] font-medium text-slate-500">
-                    {nurseDialogue.title}
-                  </div>
-                </div>
-              </div>
-              {nurseDialogue.isUrgent && (
-                <span className="shrink-0 text-xs font-bold text-rose-600">Laporan Penting</span>
-              )}
-            </div>
-            <p className="mt-2.5 overflow-y-auto text-[13px] sm:text-[13.5px] leading-relaxed text-slate-700 clinical-scroll">
-              {nurseDialogue.message}
-            </p>
+            <output aria-label="Laju pompa">{activePump.rate} <span>{activePump.unit}</span></output>
             <button
               type="button"
-              onClick={onDismissDialogue}
-              className="mt-3 min-h-[44px] w-full shrink-0 rounded-lg bg-teal-600 py-2.5 text-xs font-bold text-white transition-colors hover:bg-teal-500 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              className="sim-secondary"
+              onClick={() => onAdjustPump(activePump.drugId, activePump.step)}
+              disabled={activePump.rate >= activePump.max}
+              aria-label="Naikkan laju pompa"
             >
-              {nurseDialogue.buttonText}
+              <Plus size={16} aria-hidden="true" />
             </button>
           </div>
-        </div>
+          <div className="bay-tools">
+            <button type="button" className="sim-secondary" onClick={() => onTogglePumpPause(activePump.drugId)}>
+              {activePump.paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+              {activePump.paused ? 'Lanjutkan pompa' : 'Jeda pompa'}
+            </button>
+            <button type="button" className="sim-secondary bay-stop" onClick={() => onStopPump(activePump.drugId)}>
+              <Square size={16} aria-hidden="true" />
+              Hentikan pompa
+            </button>
+          </div>
+        </section>
       )}
+
+      <section id="orders-panel" hidden={openPanel !== 'orders'} className="bay-panel" aria-labelledby="orders-heading">
+        <h3 id="orders-heading">Daftar pemeriksaan</h3>
+        {activeOrders.length === 0 ? (
+          <p className="bay-panel-note">Belum ada pemeriksaan yang dipesan.</p>
+        ) : (
+          <ul className="bay-order-list">
+            {activeOrders.map((order) => {
+              const test = clinicalCase.diagnostics.find((item) => item.id === order.testId);
+              if (!test) return null;
+              const remaining = Math.max(0, Math.ceil(order.completesAtSec - elapsedSec));
+              return (
+                <li key={test.id}>
+                  <span>{test.name}</span>
+                  {order.completed ? (
+                    <button type="button" className="sim-secondary" onClick={() => onOpenTestResult(test.id)}>
+                      <CheckCircle2 size={16} aria-hidden="true" />
+                      Lihat hasil
+                    </button>
+                  ) : (
+                    <span className="bay-panel-note">Diproses · {formatClock(remaining)}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 };

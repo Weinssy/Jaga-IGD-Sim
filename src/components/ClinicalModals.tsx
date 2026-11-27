@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Receipt, ClipboardList, FlaskConical } from 'lucide-react';
 import { ClinicalLogEntry, CostEntry, DiagnosticTest } from '../types/clinical';
 import { formatClock, formatRupiah } from '../data/cases';
+import { ClinicalDialog } from './ClinicalDialog';
 
 interface BudgetModalProps {
   budgetLimit: number;
@@ -18,31 +19,27 @@ export const BudgetBreakdownModal: React.FC<BudgetModalProps> = ({
   const diff = budgetLimit - totalSpent;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Rincian Biaya BPJS"
-    >
-      <div className="flex max-h-[84vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+    <ClinicalDialog labelledBy="budget-title" onDismiss={onClose}>
+      <div>
+        <div className="dialog-heading flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2">
-            <Receipt className="h-4 w-4 text-teal-600" />
-            <h2 className="text-base font-extrabold text-slate-900">Rincian Biaya Pelayanan IGD</h2>
+            <Receipt className="h-4 w-4 shrink-0 text-teal-600" aria-hidden="true" />
+            <h2 id="budget-title" className="text-base font-extrabold text-slate-900">Rincian biaya pelayanan IGD</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            autoFocus
+            className="sim-secondary shrink-0"
             aria-label="Tutup rincian biaya"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3.5 text-xs">
+        <div className="grid grid-cols-2 gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3.5 text-xs sm:px-5">
           <div>
-            <div className="text-slate-500">Total Terpakai / Plafon</div>
+            <div className="text-slate-500">Terpakai dari plafon</div>
             <div className="mt-0.5 font-mono text-sm font-bold text-slate-900 tabular-nums">
               {formatRupiah(totalSpent)} / {formatRupiah(budgetLimit)}
             </div>
@@ -59,7 +56,7 @@ export const BudgetBreakdownModal: React.FC<BudgetModalProps> = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-3 clinical-scroll">
+        <div className="px-4 py-3 sm:px-5">
           {costs.length === 0 ? (
             <p className="py-8 text-center text-xs text-slate-500">
               Belum ada biaya tindakan, pemeriksaan, atau obat yang tercatat.
@@ -83,7 +80,7 @@ export const BudgetBreakdownModal: React.FC<BudgetModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };
 
@@ -99,35 +96,32 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
   onClose,
 }) => {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Rekam Medis IGD"
-    >
-      <div className="flex max-h-[84vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+    <ClinicalDialog className="max-w-xl" labelledBy="record-title" onDismiss={onClose}>
+      <div>
+        <div className="dialog-heading flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-teal-600" />
-            <h2 className="text-base font-extrabold text-slate-900">
-              Catatan Rekam Medis — {patientName}
+            <ClipboardList className="h-4 w-4 shrink-0 text-teal-600" aria-hidden="true" />
+            <h2 id="record-title" className="text-base font-extrabold text-slate-900">
+              Rekam medis {patientName}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            autoFocus
+            className="sim-secondary shrink-0"
             aria-label="Tutup rekam medis"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-3 clinical-scroll">
+        <div className="px-4 py-3 sm:px-5">
+          {logs.length === 0 && <p className="py-4 text-sm text-slate-600">Belum ada catatan.</p>}
           <div className="divide-y divide-slate-100">
             {logs.map((entry) => (
               <div key={entry.id} className="flex items-start gap-3 py-2.5 text-xs">
-                <span className="mt-0.5 shrink-0 font-mono text-[11px] font-semibold text-slate-400 tabular-nums">
+                <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold text-slate-500 tabular-nums">
                   {formatClock(entry.timeSec)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -149,7 +143,7 @@ export const MedicalRecordModal: React.FC<MedicalRecordModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };
 
@@ -165,47 +159,42 @@ export const LabResultModal: React.FC<LabResultModalProps> = ({
   onClose,
 }) => {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Hasil ${test.name}`}
-    >
-      <div className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-4 sm:px-5 py-3.5 sm:py-4">
+    <ClinicalDialog labelledBy="lab-title" onDismiss={onClose}>
+      <div>
+        <div className="dialog-heading flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <FlaskConical className="h-4 w-4 shrink-0 text-teal-600" />
             <div className="min-w-0">
-              <h2 className="truncate text-sm sm:text-base font-extrabold text-slate-900">{test.name}</h2>
-              <p className="truncate text-xs text-slate-500">Hasil Laboratorium · {patientName}</p>
+              <h2 id="lab-title" className="text-sm font-extrabold text-slate-900 sm:text-base">{test.name}</h2>
+              <p className="text-xs text-slate-500">Hasil laboratorium · {patientName}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            autoFocus
+            className="sim-secondary shrink-0"
             aria-label="Tutup hasil lab"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5 clinical-scroll">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+        <div className="space-y-4 p-4 sm:p-5">
+            <table className="w-full table-fixed text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="pb-2 pr-2 font-semibold">Parameter</th>
-                  <th className="pb-2 pr-2 font-semibold">Hasil</th>
-                  <th className="pb-2 font-semibold">Nilai Rujukan</th>
+                  <th scope="col" className="w-2/5 pb-2 pr-2 font-semibold">Parameter</th>
+                  <th scope="col" className="pb-2 pr-2 font-semibold">Hasil</th>
+                  <th scope="col" className="pb-2 font-semibold">Nilai rujukan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {test.details.map((row) => (
                   <tr key={row.label}>
-                    <td className="py-2.5 pr-2 font-medium text-slate-800">{row.label}</td>
+                    <th scope="row" className="py-2.5 pr-2 font-medium text-slate-800">{row.label}</th>
                     <td
-                      className={`py-2.5 pr-2 font-mono font-bold tabular-nums whitespace-nowrap ${
+                      className={`py-2.5 pr-2 font-mono font-bold tabular-nums ${
                         row.abnormal ? 'text-rose-600' : 'text-slate-900'
                       }`}
                     >
@@ -216,7 +205,6 @@ export const LabResultModal: React.FC<LabResultModalProps> = ({
                 ))}
               </tbody>
             </table>
-          </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
             <span className="font-bold text-slate-900">Ringkasan: </span>
@@ -232,6 +220,6 @@ export const LabResultModal: React.FC<LabResultModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };

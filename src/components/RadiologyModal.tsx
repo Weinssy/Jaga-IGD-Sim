@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, SunMedium, FileCheck } from 'lucide-react';
 import { CxrPattern } from '../types/clinical';
+import { ClinicalDialog } from './ClinicalDialog';
 
 interface RadiologyModalProps {
   patientName: string;
@@ -19,51 +20,53 @@ export const RadiologyModal: React.FC<RadiologyModalProps> = ({
   const [showExpertise, setShowExpertise] = useState(false);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-2 sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Foto Thorax AP Portable"
+    <ClinicalDialog
+      className="modal-dark max-w-3xl border-slate-700 bg-slate-900 text-slate-100"
+      labelledBy="radiology-title"
+      onDismiss={onClose}
     >
-      <div className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 sm:px-6 py-3 sm:py-4">
+      <div>
+        <div className="dialog-heading flex items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-4 py-3 sm:px-6">
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-sm sm:text-base font-bold text-white">
-              Foto Thorax AP Portable — {patientName}
+            <h2 id="radiology-title" className="text-sm font-bold text-white sm:text-base">
+              Foto toraks AP · {patientName}
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-400">
               Radiografi Dada Digital · Ruang Resusitasi
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setHighContrast((v) => !v)}
-              className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap ${
-                highContrast
-                  ? 'border-teal-400 bg-teal-950 text-teal-200'
-                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <SunMedium className="h-3.5 w-3.5" />
-              <span>Kontras Tinggi</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white"
-              aria-label="Tutup radiologi"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            autoFocus
+            className="flex shrink-0 items-center justify-center rounded-lg border border-slate-500 text-slate-300 hover:bg-slate-800 hover:text-white"
+            aria-label="Tutup radiologi"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* Radiograph Viewport */}
+        <div className="flex justify-end px-4 py-2 sm:px-6">
+          <button
+            type="button"
+            onClick={() => setHighContrast((v) => !v)}
+            aria-pressed={highContrast}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+              highContrast
+                ? 'border-teal-400 bg-teal-950 text-teal-200'
+                : 'border-slate-500 bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <SunMedium size={16} aria-hidden="true" />
+            Kontras tinggi
+          </button>
+        </div>
+
         <div className="flex flex-1 items-center justify-center overflow-hidden bg-black p-3 sm:p-6">
           <svg
             viewBox="0 0 460 400"
+            role="img"
+            aria-label="Ilustrasi radiografi toraks pasien simulasi"
             className="h-auto max-h-[45dvh] sm:h-[360px] w-full max-w-[440px] rounded-lg border border-slate-800"
             style={{ filter: highContrast ? 'contrast(1.35) brightness(1.08)' : 'none' }}
           >
@@ -181,6 +184,6 @@ export const RadiologyModal: React.FC<RadiologyModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };

@@ -3,14 +3,24 @@
 class ClinicalSoundEngine {
   private ctx: AudioContext | null = null;
   private muted = false;
+  private unavailable = false;
+
+  public isAvailable(): boolean {
+    return !this.unavailable
+      && typeof window !== 'undefined'
+      && typeof window.AudioParam?.prototype.exponentialRampToValueAtTime === 'function';
+  }
 
   private ensureContext(): AudioContext | null {
-    if (this.muted) return null;
-    if (typeof window === 'undefined') return null;
+    if (this.muted || !this.isAvailable()) return null;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return null;
-      this.ctx = new AudioCtx();
+      try {
+        this.ctx = new AudioCtx();
+      } catch {
+        this.unavailable = true;
+        return null;
+      }
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});

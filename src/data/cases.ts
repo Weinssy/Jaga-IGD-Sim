@@ -1,12 +1,14 @@
 import { ClinicalCase } from '../types/clinical';
 
+const clinicalAssets = `${import.meta.env.BASE_URL}assets/clinical`;
+
 export const ASSET_PATHS = {
-  titleBackdrop: '/src/assets/images/title_er_backdrop_1795740098805.jpg',
-  erBayBackdrop: '/src/assets/images/er_bay_backdrop_1795740098921.jpg',
-  nursePortrait: '/src/assets/images/nurse_triage_portrait_1795740099532.jpg',
-  patientMk: '/src/assets/images/patient_mk_portrait_1795740099273.jpg',
-  patientAr: '/src/assets/images/patient_ar_portrait_1795740100355.jpg',
-  patientSr: '/src/assets/images/patient_dm_portrait_1795740099580.jpg',
+  titleBackdrop: `${clinicalAssets}/ruang-resusitasi.webp`,
+  erBayBackdrop: `${clinicalAssets}/ruang-igd.webp`,
+  nursePortrait: `${clinicalAssets}/perawat-triase.webp`,
+  patientMk: `${clinicalAssets}/pasien-mk.webp`,
+  patientAr: `${clinicalAssets}/pasien-ar.webp`,
+  patientSr: `${clinicalAssets}/pasien-sr.webp`,
 } as const;
 
 export const CLINICAL_CASES: ClinicalCase[] = [
@@ -136,7 +138,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         id: 'mk_pe4',
         system: 'Disability',
         label: 'Kesadaran (GCS) & Pupil',
-        finding: 'GCS E4V4M6 (14) — kompos mentis gelisah akibat hipoksia. Pupil bulat isokor 3mm/3mm, refleks cahaya (+/+). Tidak ada defisit neurologis fokal.',
+        finding: 'GCS E4V4M6 (14), kompos mentis gelisah akibat hipoksia. Pupil bulat isokor 3mm/3mm, refleks cahaya (+/+). Tidak ada defisit neurologis fokal.',
         abnormal: false,
         durationSec: 12,
       },
@@ -255,7 +257,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         category: 'Lab',
         cost: 60000,
         durationSec: 40,
-        summary: 'Negatif — tidak relevan secara klinis dengan keluhan edema paru akut.',
+        summary: 'Negatif. Tidak relevan secara klinis dengan keluhan edema paru akut.',
         details: [
           { label: 'S. typhi O/H', value: 'Negatif', normal: 'Negatif' },
         ],
@@ -294,7 +296,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         category: 'Syringe Pump',
         route: 'IV 1 · Syringe Pump',
         doseLabel: 'Drip 10–100 mcg/mnt (titrasi)',
-        indication: 'Vasodilator vena & arteri kuat — lini utama menurunkan preload pada Edema Paru Akut hipertensif.',
+        indication: 'Vasodilator vena & arteri kuat, lini utama menurunkan preload pada Edema Paru Akut hipertensif.',
         cost: 85000,
         requiresIv: true,
         isPump: true,
@@ -372,7 +374,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         category: 'Cairan IV',
         route: 'IV Guyur cepat',
         doseLabel: '500 mL / 15 menit',
-        indication: 'Resusitasi cairan hipovolemia — KONTRAINDIKASI pada edema paru akut!',
+        indication: 'Resusitasi cairan hipovolemia. Kontraindikasi pada edema paru akut!',
         cost: 30000,
         requiresIv: true,
         warningIfContraindicated: 'Hati-hati! Loading cairan cepat memperburuk edema paru akut (ALO) dan menurunkan SpO2!',
@@ -596,7 +598,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         cost: 145000,
         durationSec: 55,
         essential: true,
-        summary: 'hs-Troponin I 640 ng/L (meningkat tajam — nekrosis miokard akut).',
+        summary: 'hs-Troponin I 640 ng/L (meningkat tajam, nekrosis miokard akut).',
         details: [
           { label: 'hs-Troponin I', value: '640 ng/L', normal: '< 19 ng/L', abnormal: true },
         ],
@@ -735,7 +737,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         category: 'Bolus IV',
         route: 'IV Bolus',
         doseLabel: '30 mg IV',
-        indication: 'Analgesik NSAID — KONTRAINDIKASI pada STEMI (meningkatkan risiko ruptur miokard & trombosis)!',
+        indication: 'Analgesik NSAID. Kontraindikasi pada STEMI (meningkatkan risiko ruptur miokard & trombosis)!',
         cost: 24000,
         requiresIv: true,
         warningIfContraindicated: 'NSAID (Ketorolac) dikontraindikasikan pada STEMI karena meningkatkan mortalitas dan risiko ruptur jantung!',
@@ -891,7 +893,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         id: 'sr_pe1',
         system: 'Airway',
         label: 'Jalan Napas & Orofaring',
-        finding: 'Angioedema bibir dan uvula (+), suara serak (hoarseness), terdengar stridor inspirasi ringan — risiko obstruksi jalan napas!',
+        finding: 'Angioedema bibir dan uvula (+), suara serak (hoarseness), terdengar stridor inspirasi ringan. Risiko obstruksi jalan napas!',
         abnormal: true,
         durationSec: 10,
       },
@@ -907,7 +909,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         id: 'sr_pe3',
         system: 'Circulation',
         label: 'Hemodinamik & Perfusi',
-        finding: 'Nadi radialis teraba cepat dan lemah (136x/mnt), akral dingin, CRT > 3 detik — tanda syok distributif!',
+        finding: 'Nadi radialis teraba cepat dan lemah (136x/mnt), akral dingin, CRT > 3 detik. Tanda syok distributif!',
         abnormal: true,
         durationSec: 12,
       },
@@ -1044,7 +1046,7 @@ export const CLINICAL_CASES: ClinicalCase[] = [
         category: 'Syringe Pump',
         route: 'IV 1 · Syringe Pump',
         doseLabel: '5 mg/jam',
-        indication: 'Antihipertensi — KONTRAINDIKASI FATAL pada pasien syok hipotensi!',
+        indication: 'Antihipertensi. Kontraindikasi fatal pada pasien syok hipotensi!',
         cost: 95000,
         requiresIv: true,
         isPump: true,

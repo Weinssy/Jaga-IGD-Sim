@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RotateCcw, Wind, X } from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
+import { ClinicalDialog } from './ClinicalDialog';
 
 interface IntubationModalProps {
   patientName: string;
@@ -68,9 +69,9 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
   const cormackGrade = glottisVisible
     ? 'Grade I (Pita suara terbuka jelas!)'
     : exposureScore >= 58
-      ? 'Grade IIb (Hanya aritenoid terlihat — tingkatkan elevasi/BURP)'
+      ? 'Grade IIb. Hanya aritenoid terlihat. Tingkatkan elevasi atau gunakan BURP.'
       : bladeTooDeep
-        ? 'Terlalu dalam — blade menekan epiglotis, tarik sedikit!'
+        ? 'Blade terlalu dalam dan menekan epiglotis. Tarik sedikit.'
         : 'Paparan belum memadai (Grade III)';
 
   const handleBladeAdjust = (delta: number) => {
@@ -163,24 +164,21 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
   const vocalCordOpacity = glottisVisible ? 1 : Math.max(0.15, (exposureScore - 35) / 65);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-2 sm:p-3"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Prosedur Intubasi Endotrakeal"
+    <ClinicalDialog
+      className="modal-dark max-w-6xl border-slate-700 bg-slate-900 text-slate-100"
+      labelledBy="intubation-title"
+      onDismiss={() => onCancel(false)}
     >
-      <div className="flex max-h-[94dvh] w-full max-w-6xl flex-col lg:flex-row lg:h-[90vh] lg:max-h-[680px] overflow-y-auto lg:overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl">
+      <div className="flex flex-col lg:h-[min(680px,calc(100dvh-1.5rem))] lg:flex-row">
         {/* Left: First-Person Modern 2D Anatomical Laryngoscopy Canvas */}
         <div className="flex shrink-0 lg:flex-1 flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-slate-950">
           {/* Non-overlapping Top Header Strip */}
-          <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-800/80 bg-slate-950/80 px-3.5 sm:px-5 py-2.5">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[10.5px] sm:text-[11px] font-semibold text-slate-400">
-                KEPALA PASIEN · {patientName}
-              </div>
-              <div className="truncate text-sm sm:text-base font-bold text-white">
-                Pandangan Laringoskopi Langsung
-              </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-950 px-3.5 py-2.5 sm:px-5">
+            <div className="min-w-0 flex-1 basis-32">
+              <p className="text-xs font-semibold text-slate-400">{patientName} · Laringoskopi</p>
+              <h2 id="intubation-title" className="text-sm font-bold text-white sm:text-base">
+                Intubasi endotrakeal
+              </h2>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -204,7 +202,8 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
               <button
                 type="button"
                 onClick={() => onCancel(false)}
-                className="flex lg:hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+                autoFocus
+                className="flex items-center justify-center rounded-lg border border-slate-500 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
                 aria-label="Tutup jendela intubasi"
               >
                 <X className="h-4 w-4" />
@@ -219,7 +218,7 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
           )}
 
           {/* Crisp Modern 2D First-Person Oral Cavity, Epiglottis, Vocal Cords & Macintosh Blade */}
-          <div className="relative h-[240px] sm:h-[320px] lg:h-auto lg:flex-1 overflow-hidden">
+          <div className="relative h-[min(240px,35dvh)] overflow-hidden sm:h-[min(320px,44dvh)] lg:h-auto lg:flex-1">
             <svg
               viewBox="0 0 720 560"
               className="h-full w-full"
@@ -438,22 +437,10 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
         {/* Right / Bottom: Guided Procedural Controls Panel */}
         <div className="flex w-full lg:w-80 shrink-0 flex-col justify-between gap-4 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-950 p-4 sm:p-5 lg:overflow-y-auto dark-scroll">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] font-semibold text-slate-400">
-                PERCOBAAN {attempt} / 3
-              </span>
-              <button
-                type="button"
-                onClick={() => onCancel(false)}
-                className="hidden lg:flex rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
-                aria-label="Tutup jendela intubasi"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            <p className="font-mono text-xs font-semibold text-slate-400">Percobaan {attempt} / 3</p>
 
             <div>
-              <h2 className="text-base sm:text-lg font-extrabold text-white">Manuver &amp; Pengamatan</h2>
+              <h3 className="text-base font-extrabold text-white sm:text-lg">Manuver dan pengamatan</h3>
               <p className="mt-0.5 text-xs text-slate-400">
                 Ikuti 4 tahap laringoskopi hingga pita suara terlihat jelas.
               </p>
@@ -473,9 +460,10 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
                   key={num}
                   type="button"
                   onClick={() => setStep(num)}
+                  aria-pressed={step === num}
                   className={`min-h-[40px] rounded-lg border px-3 py-2 text-xs font-bold transition-colors whitespace-nowrap ${
                     step === num
-                      ? 'border-teal-400 bg-teal-500 text-slate-950'
+                      ? 'border-teal-300 bg-teal-300 text-slate-950'
                       : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600'
                   }`}
                 >
@@ -557,6 +545,7 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
                   </div>
                   <button
                     type="button"
+                    aria-pressed={burpActive}
                     onClick={() => {
                       soundEngine.playClick();
                       setBurpActive((v) => !v);
@@ -668,7 +657,7 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
             type="button"
             onClick={handleRebag}
             disabled={completed}
-            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-amber-700/70 bg-amber-950/60 py-2.5 text-xs font-bold text-amber-200 hover:bg-amber-900/60 disabled:opacity-40 whitespace-nowrap"
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-amber-700/70 bg-amber-950/60 px-2 py-2.5 text-xs font-bold text-amber-200 hover:bg-amber-900/60 disabled:opacity-40"
           >
             {attempt < 3 ? <Wind className="h-3.5 w-3.5" /> : <RotateCcw className="h-3.5 w-3.5" />}
             <span>
@@ -677,6 +666,6 @@ export const IntubationModal: React.FC<IntubationModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };

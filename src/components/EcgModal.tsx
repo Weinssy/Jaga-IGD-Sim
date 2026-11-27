@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, ZoomIn, ZoomOut, Check } from 'lucide-react';
 import { EcgPattern } from '../types/clinical';
+import { ClinicalDialog } from './ClinicalDialog';
 
 interface EcgModalProps {
   patientName: string;
@@ -104,10 +105,8 @@ export const EcgModal: React.FC<EcgModalProps> = ({
   onClose,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [zoom, setZoom] = useState(1.15);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -240,142 +239,98 @@ export const EcgModal: React.FC<EcgModalProps> = ({
     ctx.stroke();
   }, [hr, patientName, pattern]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setDragging(true);
-    dragStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragging) return;
-    setPan({
-      x: dragStartRef.current.panX + (e.clientX - dragStartRef.current.x),
-      y: dragStartRef.current.panY + (e.clientY - dragStartRef.current.y),
-    });
-  };
-
-  const handleMouseUp = () => setDragging(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    setDragging(true);
-    dragStartRef.current = { x: t.clientX, y: t.clientY, panX: pan.x, panY: pan.y };
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!dragging || e.touches.length !== 1) return;
-    const t = e.touches[0];
-    setPan({
-      x: dragStartRef.current.panX + (t.clientX - dragStartRef.current.x),
-      y: dragStartRef.current.panY + (t.clientY - dragStartRef.current.y),
-    });
-  };
-
   const appendPhrase = (phrase: string) => {
     const trimmed = interpretation.trim();
-    if (trimmed.toLowerCase().includes(phrase.toLowerCase())) return;
     onChangeInterpretation(trimmed ? `${trimmed}, ${phrase}` : phrase);
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-2 sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="EKG 12-Lead"
-    >
-      <div className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start sm:items-center justify-between gap-3 border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
+    <ClinicalDialog className="max-w-5xl" labelledBy="ecg-title" onDismiss={onClose}>
+      <div>
+        <div className="dialog-heading flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base sm:text-lg font-extrabold text-slate-900">
-              EKG 12-Lead — {patientName}
+            <h2 id="ecg-title" className="text-base font-extrabold text-slate-900 sm:text-lg">
+              EKG 12 sadapan · {patientName}
             </h2>
-            <p className="text-[11px] sm:text-xs text-slate-500">
-              Geser slider untuk zoom · seret kertas EKG untuk menggeser
-            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            autoFocus
+            className="sim-secondary shrink-0"
             aria-label="Tutup EKG"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Zoomable & Pannable ECG Canvas Viewport (mouse + touch) */}
-        <div
-          className={`relative h-[220px] sm:h-[320px] lg:h-[380px] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-rose-50/40 touch-none ${
-            dragging ? 'cursor-grabbing' : 'cursor-grab'
-          }`}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleMouseUp}
-        >
-          <div
-            className="flex h-full w-full items-center justify-center"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-            }}
-          >
-            <canvas
-              ref={canvasRef}
-              className="h-[300px] w-[560px] sm:h-[460px] sm:w-[855px] rounded border border-rose-200 shadow-sm"
-            />
-          </div>
-        </div>
-
-        {/* Zoom Controls + Clinical Interpretation Input */}
-        <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 sm:px-6 py-3.5 sm:py-4 clinical-scroll">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="space-y-2 px-4 py-3 sm:px-6">
+          <label htmlFor="ecg-zoom" className="block text-xs font-bold text-slate-700">Pembesaran EKG</label>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setZoom((z) => Math.max(0.85, +(z - 0.2).toFixed(2)))}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-              aria-label="Perkecil"
+              onClick={() => setZoom((z) => Math.max(1, z - 0.25))}
+              disabled={zoom === 1}
+              className="sim-secondary"
+              aria-label="Perkecil EKG"
             >
               <ZoomOut className="h-4 w-4" />
             </button>
             <input
+              id="ecg-zoom"
               type="range"
-              min={0.85}
-              max={2.4}
-              step={0.05}
+              min={1}
+              max={3.5}
+              step={0.25}
               value={zoom}
               onChange={(e) => setZoom(parseFloat(e.target.value))}
-              className="min-w-[110px] flex-1 accent-teal-600"
-              aria-label="Tingkat Zoom EKG"
+              className="w-20 flex-1 accent-teal-600"
             />
             <button
               type="button"
-              onClick={() => setZoom((z) => Math.min(2.4, +(z + 0.2).toFixed(2)))}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-              aria-label="Perbesar"
+              onClick={() => setZoom((z) => Math.min(3.5, z + 0.25))}
+              disabled={zoom === 3.5}
+              className="sim-secondary"
+              aria-label="Perbesar EKG"
             >
               <ZoomIn className="h-4 w-4" />
             </button>
-            <span className="w-10 text-right font-mono text-xs font-semibold text-slate-600 tabular-nums">
-              {zoom.toFixed(1)}x
-            </span>
+            <output htmlFor="ecg-zoom" className="font-mono text-xs font-semibold text-slate-600 tabular-nums">
+              {Math.round(zoom * 100)}%
+            </output>
             <button
               type="button"
               onClick={() => {
-                setZoom(1.15);
-                setPan({ x: 0, y: 0 });
+                setZoom(1);
+                sheetRef.current?.scrollTo({ left: 0, top: 0 });
               }}
-              className="min-h-[36px] rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 whitespace-nowrap"
+              className="sim-secondary"
             >
-              Reset Posisi
+              Atur ulang
             </button>
           </div>
+          <p id="ecg-help" className="text-xs text-slate-600">Geser lembar EKG setelah diperbesar. Gunakan tombol panah saat lembar mendapat fokus.</p>
+        </div>
 
+        <div
+          ref={sheetRef}
+          tabIndex={0}
+          role="region"
+          aria-label="Lembar EKG"
+          aria-describedby="ecg-help"
+          className="ecg-sheet clinical-scroll"
+        >
+          <canvas
+            ref={canvasRef}
+            width={1040}
+            height={560}
+            role="img"
+            aria-label="Gelombang EKG 12 sadapan pasien simulasi"
+            style={{ inlineSize: `${zoom * 100}%` }}
+          />
+        </div>
+
+        <div className="bg-slate-50 px-4 py-4 sm:px-6">
           <div className="space-y-2">
             <label htmlFor="ecg-interpretation" className="block text-xs font-semibold text-slate-700">
               Tulis interpretasi EKG Anda (irama, laju, aksis, segmen ST/T, dan kesan):
@@ -386,7 +341,8 @@ export const EcgModal: React.FC<EcgModalProps> = ({
                   key={phrase}
                   type="button"
                   onClick={() => appendPhrase(phrase)}
-                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 sm:py-1 text-[11px] font-medium text-slate-700 transition-colors hover:border-teal-500 hover:text-teal-700"
+                  disabled={interpretation.toLowerCase().includes(phrase.toLowerCase())}
+                  className="sim-secondary"
                 >
                   + {phrase}
                 </button>
@@ -398,8 +354,8 @@ export const EcgModal: React.FC<EcgModalProps> = ({
                 type="text"
                 value={interpretation}
                 onChange={(e) => onChangeInterpretation(e.target.value)}
-                placeholder="Contoh: Sinus takikardia, HR 124x/mnt, LVH dengan strain, ST elevasi (-)"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                placeholder="Irama, laju, aksis, dan kesan"
+                className="min-w-0 flex-1 rounded-lg border border-slate-400 bg-white px-3.5 py-2.5 text-base text-slate-900 placeholder:text-slate-500"
               />
               <button
                 type="button"
@@ -413,6 +369,6 @@ export const EcgModal: React.FC<EcgModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };

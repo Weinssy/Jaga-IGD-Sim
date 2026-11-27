@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -7,6 +7,7 @@ import {
   Volume2,
   VolumeX,
   Gauge,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { EcgPattern, VitalSigns } from '../types/clinical';
 
@@ -18,10 +19,12 @@ interface PatientMonitorBarProps {
   lastNibp: { sbp: number; dbp: number; map: number; timeSec: number } | null;
   onMeasureNibp: () => void;
   paused: boolean;
+  waveformPaused: boolean;
   onTogglePause: () => void;
   speed: 1 | 2 | 4;
   onChangeSpeed: (s: 1 | 2 | 4) => void;
   muted: boolean;
+  audioAvailable: boolean;
   onToggleMute: () => void;
   onQrsBeat: () => void;
 }
@@ -88,27 +91,29 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
   lastNibp,
   onMeasureNibp,
   paused,
+  waveformPaused,
   onTogglePause,
   speed,
   onChangeSpeed,
   muted,
+  audioAvailable,
   onToggleMute,
   onQrsBeat,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   const vitalsRef = useRef(vitals);
-  const pausedRef = useRef(paused);
+  const pausedRef = useRef(waveformPaused);
   const attachedRef = useRef(monitorAttached);
   const patternRef = useRef(ecgPattern);
   const onQrsBeatRef = useRef(onQrsBeat);
 
   vitalsRef.current = vitals;
-  pausedRef.current = paused;
+  pausedRef.current = waveformPaused;
   attachedRef.current = monitorAttached;
   patternRef.current = ecgPattern;
   onQrsBeatRef.current = onQrsBeat;
 
-  // Isolated 60fps canvas animation loop for live ECG & Pleth waveforms
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -118,8 +123,10 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
     let animId = 0;
     let lastTime = performance.now();
     let phase = 0;
-    let prevPhase = 0;
     let cursorX = 0;
+    let drawnState = '';
+    const visibleWaveform = window.matchMedia('(min-width: 68rem)');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     const ecgBuffer: number[] = [];
     const plethBuffer: number[] = [];
@@ -137,9 +144,45 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
     }
 
     const render = (now: number) => {
+      animId = requestAnimationFrame(render);
       const rawDt = (now - lastTime) / 1000;
       lastTime = now;
       const dt = Math.min(rawDt, 0.05);
+      const attached = attachedRef.current;
+      const running = attached && !pausedRef.current;
+      const visible = visibleWaveform.matches;
+      const moving = running && visible && !reducedMotion.matches;
+
+      if (running) {
+        const hr = Math.max(30, Math.min(200, vitalsRef.current.hr));
+        const previousPhase = phase;
+        phase = (phase + dt * hr / 60) % 1;
+        if (previousPhase < 0.25 && phase >= 0.25) onQrsBeatRef.current();
+
+        if (moving) {
+          const stepCount = Math.max(1, Math.round(dt * 95));
+          for (let step = 0; step < stepCount; step++) {
+            const subPhase = (previousPhase + ((phase - previousPhase + 1) % 1) * (step / stepCount)) % 1;
+            cursorX = (cursorX + 1) % width;
+            ecgBuffer[cursorX] = sampleEcgWave(subPhase, patternRef.current);
+            plethBuffer[cursorX] = samplePlethWave(subPhase);
+          }
+        }
+      }
+
+      const frameState = `${visible}-${attached}-${reducedMotion.matches}-${patternRef.current}`;
+      const repaint = moving || frameState !== drawnState;
+      drawnState = frameState;
+      if (!visible || !repaint) return;
+
+      if (attached && reducedMotion.matches) {
+        for (let x = 0; x < width; x++) {
+          const restingPhase = (x / 95) % 1;
+          ecgBuffer[x] = sampleEcgWave(restingPhase, patternRef.current);
+          plethBuffer[x] = samplePlethWave(restingPhase);
+        }
+        cursorX = width - 1;
+      }
 
       ctx.clearRect(0, 0, width, height);
 
@@ -156,7 +199,7 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      if (!attachedRef.current) {
+      if (!attached) {
         ctx.strokeStyle = 'rgba(100, 116, 139, 0.45)';
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
@@ -164,27 +207,7 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
         ctx.lineTo(width, height * 0.5);
         ctx.stroke();
         ctx.setLineDash([]);
-        animId = requestAnimationFrame(render);
         return;
-      }
-
-      if (!pausedRef.current) {
-        const hr = Math.max(30, Math.min(200, vitalsRef.current.hr));
-        const bps = hr / 60;
-        prevPhase = phase;
-        phase = (phase + dt * bps) % 1;
-
-        if (prevPhase < 0.25 && phase >= 0.25) {
-          onQrsBeatRef.current();
-        }
-
-        const pxStep = Math.max(1, Math.round(dt * 95));
-        for (let s = 0; s < pxStep; s++) {
-          const subPhase = (prevPhase + ((phase - prevPhase + 1) % 1) * (s / pxStep)) % 1;
-          cursorX = (cursorX + 1) % width;
-          ecgBuffer[cursorX] = sampleEcgWave(subPhase, patternRef.current);
-          plethBuffer[cursorX] = samplePlethWave(subPhase);
-        }
       }
 
       ctx.strokeStyle = '#34D399';
@@ -232,8 +255,6 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
       ctx.beginPath();
       ctx.arc(cursorX, headY, 2.2, 0, Math.PI * 2);
       ctx.fill();
-
-      animId = requestAnimationFrame(render);
     };
 
     animId = requestAnimationFrame(render);
@@ -242,11 +263,11 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
 
   const alarms: string[] = [];
   if (monitorAttached) {
-    if (vitals.spo2 < 90) alarms.push('SpO2 Rendah');
-    if (vitals.hr > 120) alarms.push('HR Tinggi');
+    if (vitals.spo2 < 90) alarms.push('SpO₂ rendah');
+    if (vitals.hr > 120) alarms.push('Nadi tinggi');
     if (vitals.hr < 55) alarms.push('Bradikardi');
-    if (vitals.sbp >= 180) alarms.push('Krisis Hipertensi');
-    if (vitals.sbp < 90) alarms.push('Hipotensi / Syok');
+    if (vitals.sbp >= 180) alarms.push('Krisis hipertensi');
+    if (vitals.sbp < 90) alarms.push('Hipotensi / syok');
     if (vitals.rr > 28) alarms.push('Takipnea');
   }
 
@@ -256,302 +277,97 @@ export const PatientMonitorBar: React.FC<PatientMonitorBarProps> = ({
     map: Math.round((vitals.sbp + 2 * vitals.dbp) / 3),
   };
 
-  const hrAlarm = monitorAttached && (vitals.hr > 120 || vitals.hr < 55);
-  const hrSevere = monitorAttached && (vitals.hr > 135 || vitals.hr < 45);
-  const bpAlarm = monitorAttached && (displayedBp.sbp >= 180 || displayedBp.sbp < 90);
-  const bpSevere = monitorAttached && (displayedBp.sbp >= 195 || displayedBp.sbp < 85);
-  const spo2Alarm = monitorAttached && vitals.spo2 < 90;
-  const spo2Severe = monitorAttached && vitals.spo2 < 86;
-  const rrAlarm = monitorAttached && vitals.rr > 28;
-  const hasCriticalAlarm = alarms.length > 0;
-  const hasSevereAlarm = spo2Severe || bpSevere || hrSevere || (monitorAttached && vitals.rr >= 32);
+  const metrics = [
+    { label: 'Nadi', unit: 'bpm', value: Math.round(vitals.hr), tone: 'pulse', alert: vitals.hr > 120 || vitals.hr < 55 },
+    { label: 'TD', unit: 'mmHg', value: `${displayedBp.sbp}/${displayedBp.dbp}`, tone: 'pressure', alert: displayedBp.sbp >= 180 || displayedBp.sbp < 90 },
+    { label: 'SpO₂', unit: '%', value: Math.round(vitals.spo2), tone: 'oxygen', alert: vitals.spo2 < 90 },
+    { label: 'RR', unit: '/mnt', value: Math.round(vitals.rr), tone: 'breath', alert: vitals.rr > 28 },
+    { label: 'Suhu', unit: '°C', value: vitals.temp.toFixed(1), tone: 'temperature', alert: false },
+  ];
+  let monitorStatus = 'Belum terpasang';
+  if (monitorAttached) {
+    monitorStatus = alarms.length ? alarms.join(' · ') : 'Tidak ada alarm';
+  }
 
   return (
-    <div
-      className={`relative shrink-0 border-t bg-slate-950 text-slate-100 transition-colors ${
-        hasCriticalAlarm ? 'border-rose-500/80' : 'border-slate-800'
-      }`}
+    <section
+      className="monitor-bar"
+      aria-labelledby="monitor-heading"
+      data-connected={monitorAttached}
+      data-alarm={alarms.length > 0}
     >
-      {/* Top Pulsing Critical Alarm Strip (high visibility on mobile & desktop) */}
-      {hasCriticalAlarm && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-rose-500 via-amber-400 to-rose-500 animate-alarm-glow"
-        />
-      )}
-
-      {/* Main Telemetry Row */}
-      <div
-        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-3 px-3 sm:px-4 py-2 ${
-          hasCriticalAlarm ? 'bg-rose-950/20' : ''
-        }`}
-      >
-        {/* Mobile compact top row OR Desktop left monitor actions */}
-        <div className="flex items-center justify-between md:justify-start gap-2.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <Activity
-              className={`h-4 w-4 shrink-0 ${
-                hasCriticalAlarm
-                  ? 'text-rose-400 animate-alarm-pulse'
-                  : monitorAttached
-                    ? 'text-emerald-400'
-                    : 'text-slate-500'
-              }`}
-            />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-slate-200 whitespace-nowrap">
-                <span>Monitor Pasien</span>
-                {hasCriticalAlarm && (
-                  <span className="inline-flex md:hidden items-center gap-1 rounded bg-rose-600/90 px-1.5 py-0.5 text-[9.5px] font-extrabold text-white animate-alarm-pulse">
-                    KRITIS
-                  </span>
-                )}
-              </div>
-              {!monitorAttached && (
-                <div className="hidden md:block text-[11px] text-slate-400 truncate">
-                  Belum terpasang — angka vital belum terbaca
-                </div>
-              )}
-            </div>
+      <div className="monitor-content">
+        <div className="monitor-heading">
+          <div className="monitor-title">
+            <Activity size={17} aria-hidden="true" />
+            <h2 id="monitor-heading">Monitor pasien</h2>
           </div>
+          <p className="monitor-status" role="status">
+            {alarms.length > 0 && <AlertTriangle size={14} aria-label="Alarm" />}
+            <span>{monitorStatus}</span>
+          </p>
+        </div>
 
-          {monitorAttached ? (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onToggleMute}
-                className="inline-flex min-h-[32px] md:min-h-[26px] items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-300 hover:bg-slate-800 hover:text-white whitespace-nowrap"
-                title="Suara Monitor"
-              >
-                {muted ? <VolumeX className="h-3.5 w-3.5 text-slate-500" /> : <Volume2 className="h-3.5 w-3.5 text-teal-400" />}
-                <span>{muted ? 'Bisu' : 'Suara'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={onMeasureNibp}
-                className="inline-flex min-h-[32px] md:min-h-[26px] items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-200 hover:border-teal-500/60 hover:bg-slate-800 whitespace-nowrap"
-              >
-                <Gauge className="h-3.5 w-3.5 text-amber-400" />
-                <span>Tensi</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onAttachMonitor}
-              className="min-h-[34px] rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors hover:bg-teal-400 whitespace-nowrap"
-            >
-              Pasang Monitor
+        <div className="monitor-quick">
+          {!monitorAttached && (
+            <button type="button" className="monitor-attach" onClick={onAttachMonitor}>
+              Pasang monitor
             </button>
           )}
-        </div>
-
-        {/* Center Numeric Vitals Telemetry (Mobile 6-col grid prevents any left clipping; Desktop inline strip) */}
-        <div
-          className={`grid grid-cols-6 items-center gap-x-1.5 md:flex md:flex-1 md:items-center md:justify-center md:gap-4 lg:gap-5 ${
-            hasSevereAlarm ? 'animate-alarm-shake' : ''
-          }`}
-        >
-          {/* HR (1 col) */}
-          <div
-            className={`col-span-1 min-w-0 md:min-w-[66px] rounded-md px-1 py-0.5 transition-colors ${
-              hrAlarm ? 'bg-amber-500/15 ring-1 ring-amber-400/50 animate-alarm-pulse' : ''
-            }`}
-          >
-            <div className="flex items-baseline justify-between gap-0.5 text-[9px] sm:text-[10px] font-semibold text-slate-400">
-              <span>HR</span>
-              <span className="hidden sm:inline">bpm</span>
-            </div>
-            <div
-              className={`font-mono text-base sm:text-xl md:text-2xl font-bold leading-tight tabular-nums ${
-                !monitorAttached
-                  ? 'text-slate-600'
-                  : hrAlarm
-                    ? 'text-amber-400'
-                    : 'text-emerald-400'
-              }`}
-            >
-              {monitorAttached ? Math.round(vitals.hr) : '--'}
-            </div>
-          </div>
-
-          <div className="hidden md:block h-9 w-px bg-slate-800" />
-
-          {/* TD / NIBP (2 cols on mobile) */}
-          <div
-            className={`col-span-2 min-w-0 md:min-w-[112px] rounded-md px-1.5 py-0.5 transition-colors ${
-              bpAlarm ? 'bg-rose-500/18 ring-1 ring-rose-500/60 animate-alarm-pulse' : ''
-            }`}
-          >
-            <div className="flex items-baseline justify-between gap-0.5 text-[9px] sm:text-[10px] font-semibold text-slate-400">
-              <span>TD</span>
-              <span className="hidden sm:inline">mmHg</span>
-            </div>
-            <div
-              className={`font-mono text-base sm:text-xl md:text-2xl font-bold leading-tight tabular-nums whitespace-nowrap ${
-                !monitorAttached
-                  ? 'text-slate-600'
-                  : bpAlarm
-                    ? 'text-rose-400'
-                    : 'text-slate-100'
-              }`}
-            >
-              {monitorAttached ? `${displayedBp.sbp}/${displayedBp.dbp}` : '---/--'}
-            </div>
-            <div className="hidden md:block font-mono text-[10px] text-slate-400 tabular-nums">
-              {monitorAttached ? `MAP ${displayedBp.map}` : 'MAP --'}
-            </div>
-          </div>
-
-          <div className="hidden md:block h-9 w-px bg-slate-800" />
-
-          {/* SpO2 (1 col) */}
-          <div
-            className={`col-span-1 min-w-0 md:min-w-[62px] rounded-md px-1 py-0.5 transition-colors ${
-              spo2Alarm ? 'bg-rose-500/20 ring-1 ring-rose-500/70 animate-alarm-pulse' : ''
-            }`}
-          >
-            <div className="flex items-baseline justify-between gap-0.5 text-[9px] sm:text-[10px] font-semibold text-slate-400">
-              <span>SpO₂</span>
-              <span className="hidden sm:inline">%</span>
-            </div>
-            <div
-              className={`font-mono text-base sm:text-xl md:text-2xl font-bold leading-tight tabular-nums ${
-                !monitorAttached
-                  ? 'text-slate-600'
-                  : vitals.spo2 < 90
-                    ? 'text-rose-400'
-                    : vitals.spo2 < 94
-                      ? 'text-amber-400'
-                      : 'text-sky-400'
-              }`}
-            >
-              {monitorAttached ? Math.round(vitals.spo2) : '--'}
-            </div>
-          </div>
-
-          <div className="hidden md:block h-9 w-px bg-slate-800" />
-
-          {/* RR (1 col) */}
-          <div
-            className={`col-span-1 min-w-0 md:min-w-[58px] rounded-md px-1 py-0.5 transition-colors ${
-              rrAlarm ? 'bg-amber-500/15 ring-1 ring-amber-400/50 animate-alarm-pulse' : ''
-            }`}
-          >
-            <div className="flex items-baseline justify-between gap-0.5 text-[9px] sm:text-[10px] font-semibold text-slate-400">
-              <span>RR</span>
-              <span className="hidden sm:inline">/m</span>
-            </div>
-            <div
-              className={`font-mono text-base sm:text-xl md:text-2xl font-bold leading-tight tabular-nums ${
-                !monitorAttached
-                  ? 'text-slate-600'
-                  : vitals.rr > 26
-                    ? 'text-amber-300'
-                    : 'text-teal-300'
-              }`}
-            >
-              {monitorAttached ? Math.round(vitals.rr) : '--'}
-            </div>
-          </div>
-
-          <div className="hidden md:block h-9 w-px bg-slate-800" />
-
-          {/* SUHU (1 col) */}
-          <div className="col-span-1 min-w-0 md:min-w-[58px] px-1 py-0.5">
-            <div className="flex items-baseline justify-between gap-0.5 text-[9px] sm:text-[10px] font-semibold text-slate-400">
-              <span>SUHU</span>
-              <span className="hidden sm:inline">°C</span>
-            </div>
-            <div className={`font-mono text-sm sm:text-lg md:text-xl font-bold leading-tight tabular-nums ${monitorAttached ? 'text-slate-200' : 'text-slate-600'}`}>
-              {monitorAttached ? vitals.temp.toFixed(1) : '--.-'}
-            </div>
-          </div>
-        </div>
-
-        {/* Live Scrolling ECG + Pleth Canvas (desktop xl+) */}
-        <div className="hidden xl:flex flex-col items-end shrink-0">
-          <div
-            className={`relative overflow-hidden rounded-lg border bg-slate-900/90 ${
-              hasCriticalAlarm ? 'border-rose-500/60' : 'border-slate-800'
-            }`}
-          >
-            <canvas
-              ref={canvasRef}
-              className="block h-[56px] w-[340px]"
-              aria-label="Gelombang EKG dan Plethysmograph Real-Time"
-            />
-            {monitorAttached && (
-              <div className="pointer-events-none absolute left-2 top-1 flex items-center gap-2 font-mono text-[9px] text-emerald-400/90">
-                <span>II · 25mm/s</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Simulation Controls & Active Clinical Alarms */}
-      <div
-        className={`flex flex-wrap items-center justify-between gap-2 border-t px-3 sm:px-4 py-1.5 text-xs ${
-          hasCriticalAlarm
-            ? 'border-rose-500/40 bg-rose-950/35'
-            : 'border-slate-800/80 bg-slate-900/80'
-        }`}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button
             type="button"
-            onClick={onTogglePause}
-            className={`inline-flex min-h-[32px] sm:min-h-[28px] shrink-0 items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1 font-semibold transition-colors whitespace-nowrap ${
-              paused
-                ? 'bg-teal-500 text-slate-950 hover:bg-teal-400'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
+            className="monitor-toggle"
+            aria-expanded={toolsExpanded}
+            aria-controls="monitor-tools"
+            onClick={() => setToolsExpanded((expanded) => !expanded)}
           >
-            {paused ? <Play className="h-3.5 w-3.5 fill-current" /> : <Pause className="h-3.5 w-3.5" />}
-            <span>{paused ? 'Lanjut' : 'Jeda'}</span>
+            <SlidersHorizontal size={17} aria-hidden="true" />
+            <span className="monitor-toggle-label">Kontrol</span>
           </button>
-
-          {alarms.length > 0 && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="flex min-w-0 items-center gap-1.5 rounded-md bg-rose-500/15 px-2 py-0.5 ring-1 ring-rose-500/40 animate-alarm-shake"
-            >
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-400 animate-alarm-pulse" />
-              <span className="truncate font-bold text-rose-200">
-                Alarm: {alarms.slice(0, 2).join(' · ')}
-              </span>
-            </div>
-          )}
-          {monitorAttached && alarms.length === 0 && (
-            <span className="truncate font-medium text-emerald-400">
-              Stabil
-            </span>
-          )}
         </div>
 
-        {/* Speed Selector */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <span className="hidden sm:inline text-[11px] font-medium text-slate-400">Kecepatan</span>
-          <div className="inline-flex items-center rounded-md border border-slate-700 bg-slate-950 p-0.5">
-            {([1, 2, 4] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => onChangeSpeed(s)}
-                className={`min-h-[26px] rounded px-2 sm:px-2.5 py-0.5 font-mono text-[11px] font-semibold transition-colors whitespace-nowrap ${
-                  speed === s
-                    ? 'bg-teal-500 text-slate-950'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {s}x
+        <dl className="monitor-vitals">
+          {metrics.map((metric) => (
+            <div key={metric.label} data-tone={metric.tone} data-alert={monitorAttached && metric.alert}>
+              <dt>{metric.label} <span>{metric.unit}</span></dt>
+              <dd>{monitorAttached ? metric.value : '·'}</dd>
+              {metric.tone === 'pressure' && monitorAttached && (
+                <dd className="monitor-map">MAP {displayedBp.map}</dd>
+              )}
+            </div>
+          ))}
+        </dl>
+
+        <div className="monitor-wave">
+          <canvas ref={canvasRef} width={340} height={56} aria-label="Gelombang EKG dan plethysmograph" role="img" />
+          <span aria-hidden="true">II · 25 mm/s</span>
+        </div>
+
+        <div className="monitor-tools" id="monitor-tools" data-expanded={toolsExpanded}>
+          <button type="button" onClick={onTogglePause} data-active={paused}>
+            {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+            {paused ? 'Lanjut' : 'Jeda'}
+          </button>
+          <div className="monitor-speeds" role="group" aria-label="Kecepatan simulasi">
+            <span>Kecepatan</span>
+            {([1, 2, 4] as const).map((value) => (
+              <button key={value} type="button" onClick={() => onChangeSpeed(value)} aria-pressed={speed === value}>
+                {value}×
               </button>
             ))}
           </div>
+          <button type="button" onClick={onToggleMute} disabled={!audioAvailable}>
+            {!audioAvailable || muted ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+            Suara {audioAvailable ? (muted ? 'nonaktif' : 'aktif') : 'tidak tersedia'}
+          </button>
+          {monitorAttached && (
+            <button type="button" onClick={onMeasureNibp}>
+              <Gauge size={16} aria-hidden="true" />
+              Ukur TD
+            </button>
+          )}
         </div>
       </div>
-    </div>
+    </section>
   );
 };

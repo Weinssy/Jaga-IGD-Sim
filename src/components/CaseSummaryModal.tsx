@@ -11,6 +11,7 @@ import {
   VitalSigns,
 } from '../types/clinical';
 import { formatClock, formatRupiah } from '../data/cases';
+import { ClinicalDialog } from './ClinicalDialog';
 
 interface CaseSummaryModalProps {
   clinicalCase: ClinicalCase;
@@ -177,12 +178,12 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
     totalScore >= 85 ? 'A' : totalScore >= 70 ? 'B' : totalScore >= 55 ? 'C' : 'D';
   const gradeLabel =
     grade === 'A'
-      ? 'Kompeten Unggul — Resusitasi & Klinis Optimal'
+      ? 'Kompeten unggul · Resusitasi dan klinis optimal'
       : grade === 'B'
-        ? 'Baik — Pasien Tertangani Aman'
+        ? 'Baik · Pasien tertangani aman'
         : grade === 'C'
-          ? 'Cukup — Perlu Perbaikan Ketepatan Klinis'
-          : 'Perlu Evaluasi — Risiko Keselamatan Pasien';
+          ? 'Cukup · Ketepatan klinis perlu diperbaiki'
+          : 'Perlu evaluasi · Risiko keselamatan pasien';
 
   const pillars = [
     { label: 'Stabilisasi ABCDE', score: stabScore, max: 25 },
@@ -193,13 +194,8 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
   ];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Evaluasi Klinis Kasus"
-    >
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
+    <ClinicalDialog className="max-w-3xl" labelledBy="summary-title" onDismiss={onReturnToTitle}>
+      <div>
         {/* Header Banner */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-900 px-4 sm:px-6 py-4 sm:py-5 text-white">
           <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
@@ -211,7 +207,7 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
                     ? 'bg-teal-400 text-slate-950'
                     : grade === 'C'
                       ? 'bg-amber-400 text-slate-950'
-                      : 'bg-rose-500 text-white'
+                      : 'bg-rose-700 text-white'
               }`}
             >
               {grade}
@@ -225,7 +221,14 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
                 <span aria-hidden="true">·</span>
                 <span className="font-mono tabular-nums">Durasi {formatClock(elapsedSec)}</span>
               </div>
-              <h2 className="mt-0.5 text-base sm:text-xl font-extrabold leading-snug text-white">{gradeLabel}</h2>
+              <h2
+                id="summary-title"
+                tabIndex={-1}
+                ref={(heading) => { if (heading) heading.autofocus = true; }}
+                className="mt-0.5 text-base font-extrabold leading-snug text-white [--focus-color:var(--mint)] sm:text-xl"
+              >
+                {gradeLabel}
+              </h2>
               <div className="mt-1 font-mono text-xs sm:text-sm font-bold text-teal-300 tabular-nums">
                 Skor Total: {totalScore} / 100
               </div>
@@ -234,7 +237,7 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
         </div>
 
         {/* Scrollable Breakdown */}
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5 clinical-scroll">
+        <div className="space-y-5 px-4 py-5 sm:px-6">
           {/* 5-Axis Rubric Bars */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {pillars.map((p) => (
@@ -310,7 +313,7 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex shrink-0 flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 border-t border-slate-200 bg-slate-50 px-4 sm:px-6 py-3.5 sm:py-4">
+        <div className="flex flex-col gap-2.5 border-t border-slate-200 bg-slate-50 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
           <button
             type="button"
             onClick={onReturnToTitle}
@@ -329,6 +332,6 @@ export const CaseSummaryModal: React.FC<CaseSummaryModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </ClinicalDialog>
   );
 };
